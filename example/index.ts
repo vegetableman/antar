@@ -1,0 +1,1 @@
+import antar from "../index";
