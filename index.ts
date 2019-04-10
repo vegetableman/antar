@@ -243,6 +243,8 @@ class DiffBuilder {
       new Match(this.oldWords.length, this.newWords.length, 0)
     ];
 
+    console.log("matches: ", matches);
+
     let action;
     matches.forEach((match, i) => {
       let matchInOld = oldPosition == match.startInOld;
@@ -320,21 +322,23 @@ class DiffBuilder {
       let newIndices = this.wordIndices[this.oldWords[i]];
 
       //Go through the indices of the match
-      for (let j = 0; j < newIndices.length; j++) {
-        let indexInNew = newIndices[j];
-        if (indexInNew < startInNew) {
-          continue;
-        } else if (indexInNew >= endInNew) {
-          break;
-        }
+      if (Array.isArray(newIndices)) {
+        for (let j = 0; j < newIndices.length; j++) {
+          let indexInNew = newIndices[j];
+          if (indexInNew < startInNew) {
+            continue;
+          } else if (indexInNew >= endInNew) {
+            break;
+          }
 
-        let newMatchLength = matchLengthAt[indexInNew - 1] + 1;
-        newMatchLengthAt[indexInNew] = newMatchLength;
+          let newMatchLength = matchLengthAt[indexInNew - 1] + 1;
+          newMatchLengthAt[indexInNew] = newMatchLength;
 
-        if (newMatchLength > bestMatchSize) {
-          bestMatchInOld = i - newMatchLength + 1;
-          bestMatchInNew = indexInNew - newMatchLength + 1;
-          bestMatchSize = newMatchLength;
+          if (newMatchLength > bestMatchSize) {
+            bestMatchInOld = i - newMatchLength + 1;
+            bestMatchInNew = indexInNew - newMatchLength + 1;
+            bestMatchSize = newMatchLength;
+          }
         }
       }
 
