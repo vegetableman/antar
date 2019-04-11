@@ -193,6 +193,30 @@ class Match {
   }
 }
 
+interface Operation {
+  action: number;
+  startInOld: number;
+  endInOld: number;
+  startInNew: number;
+  endInNew: number;
+}
+
+class Operation {
+  constructor(
+    action: number,
+    startInOld: number,
+    endInOld: number,
+    startInNew: number,
+    endInNew: number
+  ) {
+    this.action = action;
+    this.startInOld = startInOld;
+    this.endInOld = endInOld;
+    this.startInNew = startInNew;
+    this.endInNew = endInNew;
+  }
+}
+
 interface DiffBuilder {
   oldHTML: string;
   newHTML: string;
@@ -212,6 +236,9 @@ class DiffBuilder {
     this.convertToWords();
     this.indexNewWords();
     this.operations = this.findOperations();
+    this.operations.forEach(operation => {
+      // perform operation
+    });
     return [];
   }
 
@@ -227,7 +254,7 @@ class DiffBuilder {
     });
   }
 
-  findOperations() {
+  findOperations(): Array<Operation> {
     let oldPosition = 0;
     let newPosition = 0;
     let operations = [];
@@ -257,18 +284,36 @@ class DiffBuilder {
       } else if (!matchInOld && matchInNew) {
         action = Actions.Delete;
       } else {
-        action = Actions.Equal;
+        action = null;
       }
 
-      //     operation_upto_match_positions =
-      //     Operation.new(action_upto_match_positions,
-      //         position_in_old, match.start_in_old,
-      //         position_in_new, match.start_in_new)
-      // operations << operation_upto_match_positions
+      if (!action) {
+        let operation = new Operation(
+          action,
+          oldPosition,
+          match.startInOld,
+          newPosition,
+          match.startInNew
+        );
+        operations.concat(operation);
+      }
+
+      if (match.size) {
+        let operation = new Operation(
+          Actions.Equal,
+          oldPosition,
+          match.startInOld,
+          newPosition,
+          match.startInNew
+        );
+        operations.concat(operation);
+      }
 
       oldPosition = match.endInOld();
       newPosition = match.endInNew();
     });
+
+    return operations;
   }
 
   findAllMatchingBlocks(
@@ -315,16 +360,21 @@ class DiffBuilder {
     let bestMatchSize = 0;
     let matchLengthAt = proxifiedIndexObj();
 
-    for (let i = startInOld; i <= endInOld - 1; i++) {
+    for (
+      let indexInOld = startInOld;
+      indexInOld <= endInOld - 1;
+      indexInOld++
+    ) {
       let newMatchLengthAt = proxifiedIndexObj();
 
       //Find old word match in indices of new words
-      let newIndices = this.wordIndices[this.oldWords[i]];
+      let newIndices = this.wordIndices[this.oldWords[indexInOld]];
 
       //Go through the indices of the match
       if (Array.isArray(newIndices)) {
         for (let j = 0; j < newIndices.length; j++) {
           let indexInNew = newIndices[j];
+
           if (indexInNew < startInNew) {
             continue;
           } else if (indexInNew >= endInNew) {
@@ -335,7 +385,7 @@ class DiffBuilder {
           newMatchLengthAt[indexInNew] = newMatchLength;
 
           if (newMatchLength > bestMatchSize) {
-            bestMatchInOld = i - newMatchLength + 1;
+            bestMatchInOld = indexInOld - newMatchLength + 1;
             bestMatchInNew = indexInNew - newMatchLength + 1;
             bestMatchSize = newMatchLength;
           }
