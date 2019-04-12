@@ -236,10 +236,15 @@ class DiffBuilder {
     this.convertToWords();
     this.indexNewWords();
     this.operations = this.findOperations();
+    console.log(this.operations);
     this.operations.forEach(operation => {
-      // perform operation
+      this.performOperation(operation);
     });
     return [];
+  }
+
+  performOperation(operation: Operation): void {
+    console.log("operation: ", operation);
   }
 
   convertToWords(): void {
@@ -274,8 +279,8 @@ class DiffBuilder {
 
     let action;
     matches.forEach((match, i) => {
-      let matchInOld = oldPosition == match.startInOld;
-      let matchInNew = newPosition == match.startInNew;
+      let matchInOld = oldPosition === match.startInOld;
+      let matchInNew = newPosition === match.startInNew;
 
       if (!matchInOld && !matchInNew) {
         action = Actions.Replace;
@@ -287,7 +292,7 @@ class DiffBuilder {
         action = null;
       }
 
-      if (!action) {
+      if (action) {
         let operation = new Operation(
           action,
           oldPosition,
@@ -295,7 +300,7 @@ class DiffBuilder {
           newPosition,
           match.startInNew
         );
-        operations.concat(operation);
+        operations = operations.concat(operation);
       }
 
       if (match.size) {
@@ -306,7 +311,7 @@ class DiffBuilder {
           newPosition,
           match.startInNew
         );
-        operations.concat(operation);
+        operations = operations.concat(operation);
       }
 
       oldPosition = match.endInOld();
