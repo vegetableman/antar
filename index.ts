@@ -236,7 +236,7 @@ class DiffBuilder {
     this.convertToWords();
     this.indexNewWords();
     this.operations = this.findOperations();
-    console.log(this.operations);
+    console.log("operations: ", this.operations);
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
@@ -244,7 +244,10 @@ class DiffBuilder {
   }
 
   performOperation(operation: Operation): void {
-    console.log("operation: ", operation);
+    switch (operation.action) {
+      case Actions.Insert:
+        break;
+    }
   }
 
   convertToWords(): void {
@@ -274,8 +277,6 @@ class DiffBuilder {
       ...matches,
       new Match(this.oldWords.length, this.newWords.length, 0)
     ];
-
-    console.log("matches: ", matches);
 
     let action;
     matches.forEach((match, i) => {
@@ -329,9 +330,12 @@ class DiffBuilder {
     matchingBlocks: Array<Match> = []
   ): Array<Match> {
     let match = this.findMatch(startInOld, endInOld, startInNew, endInNew);
+
     if (match) {
+      matchingBlocks.push(match);
+
       if (startInOld < match.startInOld && startInNew < match.startInNew) {
-        this.findAllMatchingBlocks(
+        return this.findAllMatchingBlocks(
           startInOld,
           match.startInOld,
           startInNew,
@@ -340,17 +344,17 @@ class DiffBuilder {
         );
       }
 
-      matchingBlocks.push(match);
-
       if (match.endInOld() < endInOld && match.endInNew() < endInNew) {
-        this.findAllMatchingBlocks(
+        return this.findAllMatchingBlocks(
           match.endInOld(),
           endInOld,
           match.endInNew(),
-          endInNew
+          endInNew,
+          matchingBlocks
         );
       }
     }
+
     return matchingBlocks;
   }
 
