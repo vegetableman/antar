@@ -167,7 +167,19 @@ const proxifiedIndexObj = () => {
   );
 };
 
-const diff = (oldHTML: string, newHTML: string): Array<any> => {
+const isOpeningTag = (item: string) => {
+  return /^\s*<[^>]+>\s*$/.test(item);
+};
+
+const isClosingTag = (item: string) => {
+  return /^\s*<\/[^>]+>\s*$/.test(item);
+};
+
+const isTag = (item: string) => {
+  return isOpeningTag(item) || isClosingTag(item);
+};
+
+const diff = (oldHTML: string, newHTML: string): Array<any> | string => {
   return new DiffBuilder(oldHTML, newHTML).build();
 };
 
@@ -222,14 +234,16 @@ interface DiffBuilder {
   newHTML: string;
   oldWords: Array<string>;
   newWords: Array<string>;
-  wordIndices: Map;
-  operations: Array;
+  wordIndices: Object;
+  operations: Array<Operation>;
+  content: string;
 }
 
 class DiffBuilder {
   constructor(oldHTML: string, newHTML: string) {
     this.oldHTML = oldHTML;
     this.newHTML = newHTML;
+    this.content = "";
   }
 
   build() {
@@ -240,13 +254,87 @@ class DiffBuilder {
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
-    return [];
+    console.log(this.content);
+    return this.content;
   }
 
   performOperation(operation: Operation): void {
     switch (operation.action) {
       case Actions.Insert:
+        this.insert(operation);
         break;
+      case Actions.Delete:
+        this.delete(operation);
+        break;
+      case Actions.Replace:
+        this.delete(operation);
+        this.insert(operation);
+        break;
+      case Actions.Equal:
+        this.equal(operation);
+        break;
+    }
+  }
+
+  insert(operation: Operation) {
+    this.insertTag(
+      "ins",
+      "diffins",
+      this.newWords.slice(operation.startInNew, operation.endInNew)
+    );
+  }
+
+  delete(operation: Operation) {
+    this.insertTag(
+      "del",
+      "diffdel",
+      this.oldWords.slice(operation.startInOld, operation.endInOld)
+    );
+  }
+
+  equal(operation: Operation) {
+    this.content += this.newWords
+      .slice(operation.startInNew, operation.endInNew)
+      .join("");
+  }
+
+  findConsecutiveIndex(words: Array<string>, condition: Function): number {
+    let indexOfFirstTag: number;
+    words.forEach((word, index) => {
+      if (condition(word)) {
+        indexOfFirstTag = index;
+        return;
+      }
+    });
+    return indexOfFirstTag || words.length;
+  }
+
+  wrapText(text: string, tagName: string, cssClass: string): string {
+    return `<${tagName} class="${cssClass}">${text}</${tagName}>`;
+  }
+
+  insertTag(tagName: string, cssClass: string, words: Array<string>) {
+    while (true) {
+      if (!words.length) {
+        break;
+      }
+      const nontagIndex = this.findConsecutiveIndex(words, (word: string) =>
+        isTag(word)
+      );
+      const nontags = words.splice(0, nontagIndex);
+      if (nontags.length) {
+        this.content += this.wrapText(nontags.join(""), tagName, cssClass);
+      }
+
+      if (!words.length) {
+        break;
+      }
+      const tagIndex = this.findConsecutiveIndex(
+        words,
+        (word: string) => !isTag(word)
+      );
+      const tags = words.splice(0, tagIndex);
+      this.content += this.wrapText(tags.join(""), tagName, cssClass);
     }
   }
 
@@ -278,7 +366,9 @@ class DiffBuilder {
       new Match(this.oldWords.length, this.newWords.length, 0)
     ];
 
-    let action;
+    console.log("matches: ", matches);
+
+    let action: number;
     matches.forEach((match, i) => {
       let matchInOld = oldPosition === match.startInOld;
       let matchInNew = newPosition === match.startInNew;
@@ -307,10 +397,10 @@ class DiffBuilder {
       if (match.size) {
         let operation = new Operation(
           Actions.Equal,
-          oldPosition,
           match.startInOld,
-          newPosition,
-          match.startInNew
+          match.endInOld(),
+          match.startInNew,
+          match.endInNew()
         );
         operations = operations.concat(operation);
       }
