@@ -277,14 +277,14 @@ class DiffBuilder {
     const { output } = this.options;
     switch (operation.action) {
       case Actions.Insert:
-        this.insert(operation, output);
+        this.insert(operation, "diffins", output);
         break;
       case Actions.Delete:
-        this.delete(operation, output);
+        this.delete(operation, "diffdel", output);
         break;
       case Actions.Replace:
-        this.delete(operation, output);
-        this.insert(operation, output);
+        this.delete(operation, "diffmod", output);
+        this.insert(operation, "diffmod", output);
         break;
       case Actions.Equal:
         this.equal(operation, output);
@@ -292,21 +292,21 @@ class DiffBuilder {
     }
   }
 
-  insert(operation: Operation, output: string) {
+  insert(operation: Operation, clazz: string, output: string) {
     if (output === Output.HTML) {
       this.insertTag(
         "ins",
-        "diffins",
+        clazz,
         this.newWords.slice(operation.startInNew, operation.endInNew)
       );
     }
   }
 
-  delete(operation: Operation, output: string) {
+  delete(operation: Operation, clazz: string, output: string) {
     if (output === Output.HTML) {
       this.insertTag(
         "del",
-        "diffdel",
+        clazz,
         this.oldWords.slice(operation.startInOld, operation.endInOld)
       );
     }
