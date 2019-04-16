@@ -44,6 +44,11 @@ enum Mode {
   Whitespace = 3
 }
 
+enum Output {
+  HTML = "html",
+  JSON = "json"
+}
+
 enum Actions {
   Replace = 1,
   Delete = 2,
@@ -179,8 +184,12 @@ const isTag = (item: string) => {
   return isOpeningTag(item) || isClosingTag(item);
 };
 
-const diff = (oldHTML: string, newHTML: string): Array<any> | string => {
-  return new DiffBuilder(oldHTML, newHTML).build();
+const diff = (
+  oldHTML: string,
+  newHTML: string,
+  options: Options = { output: Output.JSON }
+): Array<any> | string => {
+  return new DiffBuilder(oldHTML, newHTML, options).build();
 };
 
 interface Match {
@@ -229,6 +238,10 @@ class Operation {
   }
 }
 
+interface Options {
+  output: string;
+}
+
 interface DiffBuilder {
   oldHTML: string;
   newHTML: string;
@@ -237,12 +250,14 @@ interface DiffBuilder {
   wordIndices: Object;
   operations: Array<Operation>;
   content: string;
+  options: Options;
 }
 
 class DiffBuilder {
-  constructor(oldHTML: string, newHTML: string) {
+  constructor(oldHTML: string, newHTML: string, options: Options) {
     this.oldHTML = oldHTML;
     this.newHTML = newHTML;
+    this.options = options;
     this.content = "";
   }
 
@@ -259,43 +274,50 @@ class DiffBuilder {
   }
 
   performOperation(operation: Operation): void {
+    const { output } = this.options;
     switch (operation.action) {
       case Actions.Insert:
-        this.insert(operation);
+        this.insert(operation, output);
         break;
       case Actions.Delete:
-        this.delete(operation);
+        this.delete(operation, output);
         break;
       case Actions.Replace:
-        this.delete(operation);
-        this.insert(operation);
+        this.delete(operation, output);
+        this.insert(operation, output);
         break;
       case Actions.Equal:
-        this.equal(operation);
+        this.equal(operation, output);
         break;
     }
   }
 
-  insert(operation: Operation) {
-    this.insertTag(
-      "ins",
-      "diffins",
-      this.newWords.slice(operation.startInNew, operation.endInNew)
-    );
+  insert(operation: Operation, output: string) {
+    if (output === Output.HTML) {
+      this.insertTag(
+        "ins",
+        "diffins",
+        this.newWords.slice(operation.startInNew, operation.endInNew)
+      );
+    }
   }
 
-  delete(operation: Operation) {
-    this.insertTag(
-      "del",
-      "diffdel",
-      this.oldWords.slice(operation.startInOld, operation.endInOld)
-    );
+  delete(operation: Operation, output: string) {
+    if (output === Output.HTML) {
+      this.insertTag(
+        "del",
+        "diffdel",
+        this.oldWords.slice(operation.startInOld, operation.endInOld)
+      );
+    }
   }
 
-  equal(operation: Operation) {
-    this.content += this.newWords
-      .slice(operation.startInNew, operation.endInNew)
-      .join("");
+  equal(operation: Operation, output: string) {
+    if (output === Output.HTML) {
+      this.content += this.newWords
+        .slice(operation.startInNew, operation.endInNew)
+        .join("");
+    }
   }
 
   findConsecutiveIndex(words: Array<string>, condition: Function): number {
