@@ -444,10 +444,8 @@ class DiffBuilder {
     let match = this.findMatch(startInOld, endInOld, startInNew, endInNew);
 
     if (match) {
-      matchingBlocks.push(match);
-
       if (startInOld < match.startInOld && startInNew < match.startInNew) {
-        return this.findAllMatchingBlocks(
+        this.findAllMatchingBlocks(
           startInOld,
           match.startInOld,
           startInNew,
@@ -456,8 +454,10 @@ class DiffBuilder {
         );
       }
 
+      matchingBlocks.push(match);
+
       if (match.endInOld() < endInOld && match.endInNew() < endInNew) {
-        return this.findAllMatchingBlocks(
+        this.findAllMatchingBlocks(
           match.endInOld(),
           endInOld,
           match.endInNew(),
