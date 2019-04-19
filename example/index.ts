@@ -1,7 +1,11 @@
 import antar from "../index";
 const page1 = document.getElementById("page1");
 const page2 = document.getElementById("page2");
-// antar(page1.innerHTML, page2.innerHTML, { output: "html" });
+const div = document.createElement("div");
+const output = antar(page1.innerHTML, page2.innerHTML, { output: "html" });
+div.innerHTML = <string>output;
+document.body.appendChild(div);
+
 console.log("a b c", "|", "a c");
 antar("a b c", "a c", { output: "html" });
 console.log("-------");

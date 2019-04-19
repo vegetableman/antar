@@ -73,7 +73,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
     switch (mode) {
       case Mode.Tag:
         if (isEndOfTag(char)) {
-          currentWord = ">";
+          currentWord += ">";
           words.push(currentWord);
           currentWord = "";
           if (isWhiteSpace.test(char)) {
@@ -82,7 +82,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
             mode = Mode.Char;
           }
         } else {
-          currentWord = currentWord.concat(char);
+          currentWord += char;
         }
         break;
 
@@ -102,7 +102,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
           currentWord = char;
           mode = Mode.Whitespace;
         } else if (isWord.test(char)) {
-          currentWord = currentWord.concat(char);
+          currentWord += char;
         } else {
           if (currentWord) {
             words.push(currentWord);
@@ -120,7 +120,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
           currentWord = "<";
           mode = Mode.Tag;
         } else if (isWhiteSpace.test(char)) {
-          currentWord = currentWord.concat(char);
+          currentWord += char;
         } else {
           if (currentWord) {
             words.push(currentWord);
