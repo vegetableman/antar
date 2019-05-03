@@ -250,6 +250,7 @@ interface DiffBuilder {
   wordIndices: Object;
   operations: Array<Operation>;
   content: string;
+  result: Object;
   options: Options;
 }
 
@@ -259,6 +260,7 @@ class DiffBuilder {
     this.newHTML = newHTML;
     this.options = options;
     this.content = "";
+    this.result = {};
   }
 
   build() {
@@ -299,6 +301,20 @@ class DiffBuilder {
         clazz,
         this.newWords.slice(operation.startInNew, operation.endInNew)
       );
+    } else {
+      // let id = 1;
+      // let changeset = [];
+      // if (this.result[id]) {
+      //   changeset = this.result[id].changeset;
+      // } else {
+      //   this.result[id] = { changeset: [] };
+      // }
+      // this.result[id].changeset = [
+      //   ...changeset,
+      //   {
+      //     action: "insert"
+      //   }
+      // ];
     }
   }
 
@@ -322,13 +338,17 @@ class DiffBuilder {
 
   findConsecutiveIndex(words: Array<string>, condition: Function): number {
     let indexOfFirstTag: number;
-    words.forEach((word, index) => {
+    let index = 0;
+    for (let word of words) {
       if (condition(word)) {
         indexOfFirstTag = index;
-        return;
+        index++;
+        break;
       }
-    });
-    return indexOfFirstTag || words.length;
+    }
+    return typeof indexOfFirstTag !== "undefined"
+      ? indexOfFirstTag
+      : words.length;
   }
 
   wrapText(text: string, tagName: string, cssClass: string): string {
