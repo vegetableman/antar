@@ -56,6 +56,20 @@ enum Actions {
   Equal = 4
 }
 
+interface Word {
+  text: string;
+  id: string;
+  score: string;
+}
+
+class Word {
+  constructor(text: string, id?: string, score?: string) {
+    this.text = text;
+    id && (this.id = id);
+    score && (this.score = score);
+  }
+}
+
 const isWhiteSpace = new RegExp(/\s/);
 const isWord = new RegExp(/[\w\#@]+/i);
 const explode = (sequence: string): Array<string> => {
@@ -63,18 +77,34 @@ const explode = (sequence: string): Array<string> => {
 };
 const isStartOfTag = (char: string): boolean => char === "<";
 const isEndOfTag = (char: string): boolean => char === ">";
-const convertHTMLToListOfWords = (html: string): Array<string> => {
+const convertHTMLToListOfWords = (html: string): Array<Word> => {
   const initialWords = explode(html);
   let mode = Mode.Char;
   let currentWord = "";
+  let currentId = "";
   let words = [];
+  let tags = [];
+  let scoreRegExp = /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/;
+  let idRegExp = /data-antar-id="([-+]?[0-9]*\.?[0-9]+)"/;
+  let commentRegExp = /^<!--\s[^--]*\s--/;
+  let attrRegExp = /[^\<\/\w+].*/g;
 
   initialWords.forEach(char => {
     switch (mode) {
       case Mode.Tag:
         if (isEndOfTag(char)) {
+          let oldWord = currentWord;
+          if (!commentRegExp.test(currentWord)) {
+            currentWord = currentWord.replace(attrRegExp, "");
+          }
           currentWord += ">";
-          words.push(currentWord);
+          currentId = idRegExp.test(oldWord) && oldWord.match(idRegExp)[1];
+          const word = new Word(
+            currentWord,
+            currentId,
+            scoreRegExp.test(oldWord) && oldWord.match(scoreRegExp)[1]
+          );
+          words.push(word);
           currentWord = "";
           if (isWhiteSpace.test(char)) {
             mode = Mode.Whitespace;
@@ -89,14 +119,14 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
       case Mode.Char:
         if (isStartOfTag(char)) {
           if (currentWord) {
-            words.push(currentWord);
+            words.push(new Word(currentWord, currentId));
           }
 
           currentWord = "<";
           mode = Mode.Tag;
         } else if (isWhiteSpace.test(char)) {
           if (currentWord) {
-            words.push(currentWord);
+            words.push(new Word(currentWord, currentId));
           }
 
           currentWord = char;
@@ -105,7 +135,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
           currentWord += char;
         } else {
           if (currentWord) {
-            words.push(currentWord);
+            words.push(new Word(currentWord, currentId));
           }
           currentWord = char;
         }
@@ -114,7 +144,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
       case Mode.Whitespace:
         if (isStartOfTag(char)) {
           if (currentWord) {
-            words.push(currentWord);
+            words.push(new Word(currentWord, currentId));
           }
 
           currentWord = "<";
@@ -123,7 +153,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
           currentWord += char;
         } else {
           if (currentWord) {
-            words.push(currentWord);
+            words.push(new Word(currentWord, currentId));
           }
           currentWord = char;
           mode = Mode.Char;
@@ -136,7 +166,7 @@ const convertHTMLToListOfWords = (html: string): Array<string> => {
   });
 
   if (currentWord) {
-    words.push(currentWord);
+    words.push(new Word(currentWord, currentId));
   }
 
   return words;
@@ -192,6 +222,11 @@ const diff = (
   return new DiffBuilder(oldHTML, newHTML, options).build();
 };
 
+const slice = (words: Array<Word>, startIndex: number, endIndex: number) => {
+  const text = words.map(w => w.text);
+  return text.slice(startIndex, endIndex);
+};
+
 interface Match {
   startInOld: number;
   startInNew: number;
@@ -245,8 +280,8 @@ interface Options {
 interface DiffBuilder {
   oldHTML: string;
   newHTML: string;
-  oldWords: Array<string>;
-  newWords: Array<string>;
+  oldWords: Array<Word>;
+  newWords: Array<Word>;
   wordIndices: Object;
   operations: Array<Operation>;
   content: string;
@@ -267,7 +302,6 @@ class DiffBuilder {
     this.convertToWords();
     this.indexNewWords();
     this.operations = this.findOperations();
-    console.log("operations: ", this.operations);
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
@@ -295,12 +329,14 @@ class DiffBuilder {
   }
 
   insert(operation: Operation, clazz: string, output: string) {
+    const words = slice(
+      this.newWords,
+      operation.startInNew,
+      operation.endInNew
+    );
+    console.log(words);
     if (output === Output.HTML) {
-      this.insertTag(
-        "ins",
-        clazz,
-        this.newWords.slice(operation.startInNew, operation.endInNew)
-      );
+      this.insertTag("ins", clazz, words);
     } else {
       // let id = 1;
       // let changeset = [];
@@ -323,16 +359,18 @@ class DiffBuilder {
       this.insertTag(
         "del",
         clazz,
-        this.oldWords.slice(operation.startInOld, operation.endInOld)
+        slice(this.oldWords, operation.startInOld, operation.endInOld)
       );
     }
   }
 
   equal(operation: Operation, output: string) {
     if (output === Output.HTML) {
-      this.content += this.newWords
-        .slice(operation.startInNew, operation.endInNew)
-        .join("");
+      this.content += slice(
+        this.newWords,
+        operation.startInNew,
+        operation.endInNew
+      ).join("");
     }
   }
 
@@ -387,8 +425,8 @@ class DiffBuilder {
 
   indexNewWords(): void {
     this.wordIndices = proxifiedListObj();
-    this.newWords.forEach((word, i) => {
-      this.wordIndices[word] = i;
+    this.newWords.forEach((word: Word, i) => {
+      this.wordIndices[word.text] = i;
     });
   }
 
@@ -407,8 +445,6 @@ class DiffBuilder {
       ...matches,
       new Match(this.oldWords.length, this.newWords.length, 0)
     ];
-
-    console.log("matches: ", matches);
 
     let action: number;
     matches.forEach((match, i) => {
@@ -509,7 +545,7 @@ class DiffBuilder {
       let newMatchLengthAt = proxifiedIndexObj();
 
       //Find old word match in indices of new words
-      let newIndices = this.wordIndices[this.oldWords[indexInOld]];
+      let newIndices = this.wordIndices[this.oldWords[indexInOld].text];
 
       //Go through the indices of the match
       if (Array.isArray(newIndices)) {
