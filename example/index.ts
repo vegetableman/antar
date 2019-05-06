@@ -3,7 +3,6 @@ import scorer from "antar-scorer";
 const page1 = document.createElement("iframe");
 page1.src = "page1.html";
 page1.onload = function() {
-  // console.log("onload", page1.contentDocument.body.innerHTML);
   let index = 0;
   page1.contentDocument.body.querySelectorAll("*").forEach(node => {
     node.setAttribute("data-antar-id", "" + index++);
@@ -19,7 +18,6 @@ page2.onload = function() {
     page2.contentDocument.body.innerHTML,
     { output: "html" }
   );
-  // console.log(output);
   const div = document.createElement("div");
   div.innerHTML = <string>output;
   document.body.appendChild(div);

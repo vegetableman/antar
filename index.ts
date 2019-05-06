@@ -58,13 +58,15 @@ enum Actions {
 
 interface Word {
   text: string;
+  index: number;
   id: string;
   score: string;
 }
 
 class Word {
-  constructor(text: string, id?: string, score?: string) {
+  constructor(text: string, index: number, id?: string, score?: string) {
     this.text = text;
+    this.index = index;
     id && (this.id = id);
     score && (this.score = score);
   }
@@ -83,11 +85,11 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
   let currentWord = "";
   let currentId = "";
   let words = [];
-  let tags = [];
   let scoreRegExp = /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/;
   let idRegExp = /data-antar-id="([-+]?[0-9]*\.?[0-9]+)"/;
   let commentRegExp = /^<!--\s[^--]*\s--/;
   let attrRegExp = /[^\<\/\w+].*/g;
+  let index = 0;
 
   initialWords.forEach(char => {
     switch (mode) {
@@ -101,6 +103,7 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
           currentId = idRegExp.test(oldWord) && oldWord.match(idRegExp)[1];
           const word = new Word(
             currentWord,
+            index++,
             currentId,
             scoreRegExp.test(oldWord) && oldWord.match(scoreRegExp)[1]
           );
@@ -119,14 +122,14 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
       case Mode.Char:
         if (isStartOfTag(char)) {
           if (currentWord) {
-            words.push(new Word(currentWord, currentId));
+            words.push(new Word(currentWord, index++, currentId));
           }
 
           currentWord = "<";
           mode = Mode.Tag;
         } else if (isWhiteSpace.test(char)) {
           if (currentWord) {
-            words.push(new Word(currentWord, currentId));
+            words.push(new Word(currentWord, index++, currentId));
           }
 
           currentWord = char;
@@ -135,7 +138,7 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
           currentWord += char;
         } else {
           if (currentWord) {
-            words.push(new Word(currentWord, currentId));
+            words.push(new Word(currentWord, index++, currentId));
           }
           currentWord = char;
         }
@@ -144,7 +147,7 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
       case Mode.Whitespace:
         if (isStartOfTag(char)) {
           if (currentWord) {
-            words.push(new Word(currentWord, currentId));
+            words.push(new Word(currentWord, index++, currentId));
           }
 
           currentWord = "<";
@@ -153,7 +156,7 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
           currentWord += char;
         } else {
           if (currentWord) {
-            words.push(new Word(currentWord, currentId));
+            words.push(new Word(currentWord, index++, currentId));
           }
           currentWord = char;
           mode = Mode.Char;
@@ -166,8 +169,10 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
   });
 
   if (currentWord) {
-    words.push(new Word(currentWord, currentId));
+    words.push(new Word(currentWord, index++, currentId));
   }
+
+  console.log(words);
 
   return words;
 };
@@ -223,7 +228,7 @@ const diff = (
 };
 
 const slice = (words: Array<Word>, startIndex: number, endIndex: number) => {
-  const text = words.map(w => w.text);
+  const text = words.filter(w => w.index < endIndex).map(w => w.text);
   return text.slice(startIndex, endIndex);
 };
 
@@ -305,7 +310,7 @@ class DiffBuilder {
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
-    console.log(this.content);
+    // console.log(this.content);
     return this.content;
   }
 
@@ -334,7 +339,7 @@ class DiffBuilder {
       operation.startInNew,
       operation.endInNew
     );
-    console.log(words);
+    // console.log(words);
     if (output === Output.HTML) {
       this.insertTag("ins", clazz, words);
     } else {
