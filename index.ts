@@ -84,11 +84,15 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
   let mode = Mode.Char;
   let currentWord = "";
   let currentId = "";
+  let tags = [];
+  let ids = [];
   let words = [];
   let scoreRegExp = /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/;
   let idRegExp = /data-antar-id="([-+]?[0-9]*\.?[0-9]+)"/;
+  let isClosing = /^<\/\w+>/;
   let commentRegExp = /^<!--\s[^--]*\s--/;
   let attrRegExp = /[^\<\/\w+].*/g;
+  let isValidRegExp = /^<(?!hr|area|input|br|base|col|embed|img|link|meta|param|source|track|wbr)([a-z]+)>/;
   let index = 0;
 
   initialWords.forEach(char => {
@@ -100,11 +104,20 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
             currentWord = currentWord.replace(attrRegExp, "");
           }
           currentWord += ">";
-          currentId = idRegExp.test(oldWord) && oldWord.match(idRegExp)[1];
+          let oldId = ids[ids.length - 1];
+          let id = idRegExp.test(oldWord) && oldWord.match(idRegExp)[1];
+          if (id && isValidRegExp.test(currentWord)) {
+            tags.push(currentWord);
+            ids.push(id);
+          } else if (isClosing.test(currentWord)) {
+            ids.pop();
+            tags.pop();
+            currentId = ids[ids.length - 1];
+          }
           const word = new Word(
             currentWord,
             index++,
-            currentId,
+            id || oldId,
             scoreRegExp.test(oldWord) && oldWord.match(scoreRegExp)[1]
           );
           words.push(word);
@@ -166,6 +179,7 @@ const convertHTMLToListOfWords = (html: string): Array<Word> => {
       default:
         throw new TypeError("Unknown mode");
     }
+    currentId = ids[ids.length - 1];
   });
 
   if (currentWord) {
