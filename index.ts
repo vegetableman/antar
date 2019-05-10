@@ -399,9 +399,9 @@ class DiffBuilder {
     for (let word of words) {
       if (condition(word)) {
         indexOfFirstTag = index;
-        index++;
         break;
       }
+      index++;
     }
     return typeof indexOfFirstTag !== "undefined"
       ? indexOfFirstTag
