@@ -1,43 +1,3 @@
-/**
- *  diff = {
-  [
-    id: 1,
-    priority: (1|2),
-    changeset: {
-      replace: [
-        {
-          text: ‘hello’,
-          Index: 1,
-          change: ‘world is dead’ 
-        }
-      ],
-      insert: [
-        {
-          text: ‘hello’,
-          index: 1,
-          pos: (before|after),
-          change: ‘world’
-        }
-      ],
-      delete:[
-        {
-          text: ‘world’,
-          index: 2,
-          pos: (before|after),
-          change: ‘hello’
-        }
-      ] 
-    }
-  ]
-}
- **/
-
-interface Diff {}
-
-interface Changeset {}
-
-enum ContentScore {}
-
 enum Mode {
   Char = 1,
   Tag = 2,
@@ -60,16 +20,42 @@ interface Word {
   text: string;
   index: number;
   id: string;
-  score: string;
 }
 
-class Word {
-  constructor(text: string, index: number, id?: string, score?: string) {
-    this.text = text;
-    this.index = index;
-    id && (this.id = id);
-    score && (this.score = score);
-  }
+interface Match {
+  startInOld: number;
+  startInNew: number;
+  size: number;
+}
+
+interface Operation {
+  action: number;
+  startInOld: number;
+  endInOld: number;
+  startInNew: number;
+  endInNew: number;
+}
+
+interface Options {
+  output: string;
+}
+
+interface DiffBuilder {
+  oldHTML: string;
+  newHTML: string;
+  oldWords: Array<Word>;
+  newWords: Array<Word>;
+  wordIndices: Object;
+  operations: Array<Operation>;
+  content: string;
+  result: Object;
+  options: Options;
+  diff: Diff;
+}
+
+interface Diff {
+  changesets: Array<object>;
+  ids: object;
 }
 
 const isWhiteSpace = new RegExp(/\s/);
@@ -79,117 +65,6 @@ const explode = (sequence: string): Array<string> => {
 };
 const isStartOfTag = (char: string): boolean => char === "<";
 const isEndOfTag = (char: string): boolean => char === ">";
-const convertHTMLToListOfWords = (html: string): Array<Word> => {
-  const initialWords = explode(html);
-  let mode = Mode.Char;
-  let currentWord = "";
-  let currentId = "";
-  let tags = [];
-  let ids = [];
-  let words = [];
-  let scoreRegExp = /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/;
-  let idRegExp = /data-antar-id="([-+]?[0-9]*\.?[0-9]+)"/;
-  let isClosing = /^<\/\w+>/;
-  let commentRegExp = /^<!--\s[^--]*\s--/;
-  let attrRegExp = /[^\<\/\w+].*/g;
-  let isValidRegExp = /^<(?!hr|area|input|br|base|col|embed|img|link|meta|param|source|track|wbr)([a-z]+)>/;
-  let index = 0;
-
-  initialWords.forEach(char => {
-    switch (mode) {
-      case Mode.Tag:
-        if (isEndOfTag(char)) {
-          let oldWord = currentWord;
-          if (!commentRegExp.test(currentWord)) {
-            currentWord = currentWord.replace(attrRegExp, "");
-          }
-          currentWord += ">";
-          let oldId = ids[ids.length - 1];
-          let id = idRegExp.test(oldWord) && oldWord.match(idRegExp)[1];
-          if (id && isValidRegExp.test(currentWord)) {
-            tags.push(currentWord);
-            ids.push(id);
-          } else if (isClosing.test(currentWord)) {
-            ids.pop();
-            tags.pop();
-            currentId = ids[ids.length - 1];
-          }
-          const word = new Word(
-            currentWord,
-            index++,
-            id || oldId,
-            scoreRegExp.test(oldWord) && oldWord.match(scoreRegExp)[1]
-          );
-          words.push(word);
-          currentWord = "";
-          if (isWhiteSpace.test(char)) {
-            mode = Mode.Whitespace;
-          } else {
-            mode = Mode.Char;
-          }
-        } else {
-          currentWord += char;
-        }
-        break;
-
-      case Mode.Char:
-        if (isStartOfTag(char)) {
-          if (currentWord) {
-            words.push(new Word(currentWord, index++, currentId));
-          }
-
-          currentWord = "<";
-          mode = Mode.Tag;
-        } else if (isWhiteSpace.test(char)) {
-          if (currentWord) {
-            words.push(new Word(currentWord, index++, currentId));
-          }
-
-          currentWord = char;
-          mode = Mode.Whitespace;
-        } else if (isWord.test(char)) {
-          currentWord += char;
-        } else {
-          if (currentWord) {
-            words.push(new Word(currentWord, index++, currentId));
-          }
-          currentWord = char;
-        }
-        break;
-
-      case Mode.Whitespace:
-        if (isStartOfTag(char)) {
-          if (currentWord) {
-            words.push(new Word(currentWord, index++, currentId));
-          }
-
-          currentWord = "<";
-          mode = Mode.Tag;
-        } else if (isWhiteSpace.test(char)) {
-          currentWord += char;
-        } else {
-          if (currentWord) {
-            words.push(new Word(currentWord, index++, currentId));
-          }
-          currentWord = char;
-          mode = Mode.Char;
-        }
-        break;
-
-      default:
-        throw new TypeError("Unknown mode");
-    }
-    currentId = ids[ids.length - 1];
-  });
-
-  if (currentWord) {
-    words.push(new Word(currentWord, index++, currentId));
-  }
-
-  console.log(words);
-
-  return words;
-};
 
 const proxifiedListObj = () => {
   return new Proxy(
@@ -233,6 +108,14 @@ const isTag = (item: string) => {
   return isOpeningTag(item) || isClosingTag(item);
 };
 
+const REGEXPS = {
+  scoreRegExp: /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/,
+  idRegExp: /data-antar-id="(\w+)"/,
+  commentRegExp: /^<!--\s[^--]*\s--/,
+  attrRegExp: /[^\<\/\w+].*/g,
+  commentEndRegExp: /<!-- end antar-id#(\w+) --/
+};
+
 const diff = (
   oldHTML: string,
   newHTML: string,
@@ -241,15 +124,27 @@ const diff = (
   return new DiffBuilder(oldHTML, newHTML, options).build();
 };
 
-const slice = (words: Array<Word>, startIndex: number, endIndex: number) => {
-  const text = words.filter(w => w.index < endIndex).map(w => w.text);
-  return text.slice(startIndex, endIndex);
+const slice = (
+  words: Array<Word>,
+  startIndex: number,
+  endIndex: number
+): Array<Word> => {
+  return words.filter(w => w.index >= startIndex && w.index < endIndex);
 };
 
-interface Match {
-  startInOld: number;
-  startInNew: number;
-  size: number;
+class Diff {
+  constructor() {
+    this.changesets = [];
+    this.ids = [];
+  }
+}
+
+class Word {
+  constructor(text: string, index: number, id?: string) {
+    this.text = text;
+    this.index = index;
+    id && (this.id = id);
+  }
 }
 
 class Match {
@@ -268,14 +163,6 @@ class Match {
   }
 }
 
-interface Operation {
-  action: number;
-  startInOld: number;
-  endInOld: number;
-  startInNew: number;
-  endInNew: number;
-}
-
 class Operation {
   constructor(
     action: number,
@@ -292,22 +179,6 @@ class Operation {
   }
 }
 
-interface Options {
-  output: string;
-}
-
-interface DiffBuilder {
-  oldHTML: string;
-  newHTML: string;
-  oldWords: Array<Word>;
-  newWords: Array<Word>;
-  wordIndices: Object;
-  operations: Array<Operation>;
-  content: string;
-  result: Object;
-  options: Options;
-}
-
 class DiffBuilder {
   constructor(oldHTML: string, newHTML: string, options: Options) {
     this.oldHTML = oldHTML;
@@ -315,6 +186,7 @@ class DiffBuilder {
     this.options = options;
     this.content = "";
     this.result = {};
+    this.diff = new Diff();
   }
 
   build() {
@@ -324,7 +196,7 @@ class DiffBuilder {
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
-    // console.log(this.content);
+    console.log("diff: ", this.diff);
     return this.content;
   }
 
@@ -353,33 +225,34 @@ class DiffBuilder {
       operation.startInNew,
       operation.endInNew
     );
-    // console.log(words);
+
     if (output === Output.HTML) {
-      this.insertTag("ins", clazz, words);
+      this.insertTag("ins", clazz, words.map(w => w.text));
     } else {
-      // let id = 1;
-      // let changeset = [];
-      // if (this.result[id]) {
-      //   changeset = this.result[id].changeset;
-      // } else {
-      //   this.result[id] = { changeset: [] };
-      // }
-      // this.result[id].changeset = [
-      //   ...changeset,
-      //   {
-      //     action: "insert"
-      //   }
-      // ];
+      this.diff.changesets.push({
+        action: "INSERT",
+        startIndex: operation.startInNew,
+        endIndex: operation.endInNew,
+        id: words.length ? words[0].id : null
+      });
     }
   }
 
   delete(operation: Operation, clazz: string, output: string) {
+    const words = slice(
+      this.oldWords,
+      operation.startInOld,
+      operation.endInOld
+    );
     if (output === Output.HTML) {
-      this.insertTag(
-        "del",
-        clazz,
-        slice(this.oldWords, operation.startInOld, operation.endInOld)
-      );
+      this.insertTag("del", clazz, words.map(w => w.text));
+    } else {
+      this.diff.changesets.push({
+        action: "DELETE",
+        startIndex: operation.startInOld,
+        endIndex: operation.endInOld,
+        id: words.length ? words[0].id : null
+      });
     }
   }
 
@@ -389,7 +262,9 @@ class DiffBuilder {
         this.newWords,
         operation.startInNew,
         operation.endInNew
-      ).join("");
+      )
+        .map(w => w.text)
+        .join("");
     }
   }
 
@@ -437,9 +312,127 @@ class DiffBuilder {
     }
   }
 
+  convertHTMLToListOfWords(html: string): Array<Word> {
+    const initialWords = explode(html);
+    const { output } = this.options;
+    let mode = Mode.Char;
+    let currentWord = "";
+    let currentId = null;
+    let words = [];
+    let index = 0;
+    const {
+      idRegExp,
+      scoreRegExp,
+      commentEndRegExp,
+      commentRegExp,
+      attrRegExp
+    } = REGEXPS;
+
+    initialWords.forEach(char => {
+      switch (mode) {
+        case Mode.Tag:
+          if (isEndOfTag(char)) {
+            let id =
+              idRegExp.test(currentWord) && currentWord.match(idRegExp)[1];
+
+            let score =
+              scoreRegExp.test(currentWord) &&
+              currentWord.match(scoreRegExp)[1];
+
+            if (id) {
+              currentId = id;
+              if (output === Output.JSON) {
+                this.diff.ids[id] = { id, score };
+              }
+            }
+
+            if (commentEndRegExp.test(currentWord)) {
+              const endId = currentWord.match(commentEndRegExp)[1];
+              if (endId === currentId) {
+                currentId = null;
+                currentWord = null;
+              }
+            }
+
+            if (currentWord && !commentRegExp.test(currentWord)) {
+              currentWord = currentWord.replace(attrRegExp, "");
+            }
+
+            if (currentWord) {
+              currentWord += ">";
+              words.push(new Word(currentWord, index++, currentId));
+            }
+
+            currentWord = "";
+            if (isWhiteSpace.test(char)) {
+              mode = Mode.Whitespace;
+            } else {
+              mode = Mode.Char;
+            }
+          } else {
+            currentWord += char;
+          }
+          break;
+
+        case Mode.Char:
+          if (isStartOfTag(char)) {
+            if (currentWord) {
+              words.push(new Word(currentWord, index++, currentId));
+            }
+
+            currentWord = "<";
+            mode = Mode.Tag;
+          } else if (isWhiteSpace.test(char)) {
+            if (currentWord) {
+              words.push(new Word(currentWord, index++, currentId));
+            }
+
+            currentWord = char;
+            mode = Mode.Whitespace;
+          } else if (isWord.test(char)) {
+            currentWord += char;
+          } else {
+            if (currentWord) {
+              words.push(new Word(currentWord, index++, currentId));
+            }
+            currentWord = char;
+          }
+          break;
+
+        case Mode.Whitespace:
+          if (isStartOfTag(char)) {
+            if (currentWord) {
+              words.push(new Word(currentWord, index++, currentId));
+            }
+
+            currentWord = "<";
+            mode = Mode.Tag;
+          } else if (isWhiteSpace.test(char)) {
+            currentWord += char;
+          } else {
+            if (currentWord) {
+              words.push(new Word(currentWord, index++, currentId));
+            }
+            currentWord = char;
+            mode = Mode.Char;
+          }
+          break;
+
+        default:
+          throw new TypeError("Unknown mode");
+      }
+    });
+
+    if (currentWord) {
+      words.push(new Word(currentWord, index++, currentId));
+    }
+
+    return words;
+  }
+
   convertToWords(): void {
-    this.oldWords = convertHTMLToListOfWords(this.oldHTML);
-    this.newWords = convertHTMLToListOfWords(this.newHTML);
+    this.oldWords = this.convertHTMLToListOfWords(this.oldHTML);
+    this.newWords = this.convertHTMLToListOfWords(this.newHTML);
   }
 
   indexNewWords(): void {
