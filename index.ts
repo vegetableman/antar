@@ -16,6 +16,11 @@ enum Actions {
   Equal = 4
 }
 
+enum Attr {
+  Score = "data-antar-score",
+  Id = "data-antar-id"
+}
+
 interface Word {
   text: string;
   index: number;
@@ -109,6 +114,12 @@ const isTag = (item: string) => {
   return isOpeningTag(item) || isClosingTag(item);
 };
 
+const random = () => {
+  return Math.round(new Date().getTime() * Math.random())
+    .toString(16)
+    .substr(0, 4);
+};
+
 const REGEXPS = {
   scoreRegExp: /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/,
   idRegExp: /data-antar-id="(\w+)"/,
@@ -117,12 +128,43 @@ const REGEXPS = {
   commentEndRegExp: /<!-- end antar-id#(\w+) --/
 };
 
+const score = async (d: Document) => {
+  const scorer = await import("antar-scorer");
+  scorer.default.score(d.body.innerHTML, d);
+};
+
+const idify = (doc: Document) => {
+  doc.body.querySelectorAll(`[${Attr.Score}]`).forEach(node => {
+    if (
+      node.getAttribute(Attr.Score) !== "-9999" &&
+      !node.getAttribute(Attr.Id)
+    ) {
+      const r = random();
+      node.setAttribute(Attr.Id, "" + r);
+      let parent = node.parentNode;
+      let newNode = new Comment(" end antar-id#" + r + " ");
+      parent.insertBefore(newNode, node.nextSibling);
+    }
+  });
+};
+
 const diff = (
-  oldNode: Element,
-  newNode: Element,
+  oldDocument: Document,
+  newDocument: Document,
   options: Options = { output: Output.JSON, enableScore: true }
-): Array<any> | string => {
-  return new DiffBuilder(oldNode.innerHTML, newNode.innerHTML, options).build();
+): Diff | string => {
+  if (options.enableScore) {
+    score(oldDocument);
+    idify(oldDocument);
+
+    score(newDocument);
+    idify(newDocument);
+  }
+  return new DiffBuilder(
+    oldDocument.body.innerHTML,
+    newDocument.body.innerHTML,
+    options
+  ).build();
 };
 
 const slice = (
@@ -197,8 +239,7 @@ class DiffBuilder {
     this.operations.forEach(operation => {
       this.performOperation(operation);
     });
-    console.log("diff: ", this.diff);
-    return this.content;
+    return this.options.output === Output.JSON ? this.diff : this.content;
   }
 
   performOperation(operation: Operation): void {
@@ -234,7 +275,9 @@ class DiffBuilder {
         action: "INSERT",
         startIndex: operation.startInNew,
         endIndex: operation.endInNew,
-        id: words.length ? words[0].id : null
+        ...(this.options.enableScore && {
+          id: words.length ? words[0].id : null
+        })
       });
     }
   }
@@ -252,7 +295,9 @@ class DiffBuilder {
         action: "DELETE",
         startIndex: operation.startInOld,
         endIndex: operation.endInOld,
-        id: words.length ? words[0].id : null
+        ...(this.options.enableScore && {
+          id: words.length ? words[0].id : null
+        })
       });
     }
   }
@@ -333,17 +378,19 @@ class DiffBuilder {
       switch (mode) {
         case Mode.Tag:
           if (isEndOfTag(char)) {
-            let id =
-              idRegExp.test(currentWord) && currentWord.match(idRegExp)[1];
+            if (this.options.enableScore) {
+              let id =
+                idRegExp.test(currentWord) && currentWord.match(idRegExp)[1];
 
-            let score =
-              scoreRegExp.test(currentWord) &&
-              currentWord.match(scoreRegExp)[1];
+              let score =
+                scoreRegExp.test(currentWord) &&
+                currentWord.match(scoreRegExp)[1];
 
-            if (id) {
-              currentId = id;
-              if (output === Output.JSON) {
-                this.diff.ids[id] = { id, score };
+              if (id) {
+                currentId = id;
+                if (output === Output.JSON) {
+                  this.diff.ids[id] = { id, score };
+                }
               }
             }
 
