@@ -38,6 +38,7 @@ interface Operation {
 
 interface Options {
   output: string;
+  enableScore?: boolean;
 }
 
 interface DiffBuilder {
@@ -117,11 +118,11 @@ const REGEXPS = {
 };
 
 const diff = (
-  oldHTML: string,
-  newHTML: string,
-  options: Options = { output: Output.JSON }
+  oldNode: Element,
+  newNode: Element,
+  options: Options = { output: Output.JSON, enableScore: true }
 ): Array<any> | string => {
-  return new DiffBuilder(oldHTML, newHTML, options).build();
+  return new DiffBuilder(oldNode.innerHTML, newNode.innerHTML, options).build();
 };
 
 const slice = (

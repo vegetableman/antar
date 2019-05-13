@@ -37,11 +37,9 @@ page2.onload = function() {
         parent.insertBefore(newNode, node.nextSibling);
       }
     });
-  const output = antar(
-    page1.contentDocument.body.innerHTML,
-    page2.contentDocument.body.innerHTML,
-    { output: "html" }
-  );
+  const output = antar(page1.contentDocument.body, page2.contentDocument.body, {
+    output: "html"
+  });
   const div = document.createElement("div");
   div.innerHTML = <string>output;
   document.body.appendChild(div);
