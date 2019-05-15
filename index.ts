@@ -53,17 +53,17 @@ interface DiffBuilder {
   newHTML: string;
   oldWords: Array<Word>;
   newWords: Array<Word>;
-  wordIndices: Object;
+  wordIndices: {};
   operations: Array<Operation>;
   content: string;
-  result: Object;
+  result: {};
   options: Options;
   diff: Diff;
 }
 
 interface Diff {
-  changesets: Array<object>;
-  ids: object;
+  changesets: Array<{}>;
+  ids: {};
 }
 
 const isWhiteSpace = new RegExp(/\s/);
