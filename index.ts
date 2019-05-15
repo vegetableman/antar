@@ -1,3 +1,5 @@
+import scorer from "antar-scorer";
+
 enum Mode {
   Char = 1,
   Tag = 2,
@@ -128,11 +130,6 @@ const REGEXPS = {
   commentEndRegExp: /<!-- end antar-id#(\w+) --/
 };
 
-const score = async (d: Document) => {
-  const scorer = await import("antar-scorer");
-  scorer.default.score(d.body.innerHTML, d);
-};
-
 const idify = (doc: Document) => {
   doc.body.querySelectorAll(`[${Attr.Score}]`).forEach(node => {
     if (
@@ -148,17 +145,20 @@ const idify = (doc: Document) => {
   });
 };
 
+const prepareDocs = (oldDocument: Document, newDocument: Document) => {
+  [oldDocument, newDocument].forEach(doc => {
+    scorer.score(doc.body.innerHTML, doc);
+    idify(doc);
+  });
+};
+
 const diff = (
   oldDocument: Document,
   newDocument: Document,
-  options: Options = { output: Output.JSON, enableScore: true }
-): Diff | string => {
+  options: Options = { output: Output.JSON, enableScore: false }
+) => {
   if (options.enableScore) {
-    score(oldDocument);
-    idify(oldDocument);
-
-    score(newDocument);
-    idify(newDocument);
+    prepareDocs(oldDocument, newDocument);
   }
   return new DiffBuilder(
     oldDocument.body.innerHTML,
@@ -176,9 +176,11 @@ const slice = (
 };
 
 class Diff {
-  constructor() {
+  constructor(enableScore?: boolean) {
     this.changesets = [];
-    this.ids = [];
+    if (enableScore) {
+      this.ids = [];
+    }
   }
 }
 
@@ -229,7 +231,7 @@ class DiffBuilder {
     this.options = options;
     this.content = "";
     this.result = {};
-    this.diff = new Diff();
+    this.diff = new Diff(options.enableScore);
   }
 
   build() {
