@@ -7,7 +7,7 @@ enum Mode {
 }
 
 enum Output {
-  HTML = "html",
+  TEXT = "text",
   JSON = "json"
 }
 
@@ -152,19 +152,28 @@ const prepareDocs = (oldDocument: Document, newDocument: Document) => {
   });
 };
 
-const diff = (
-  oldDocument: Document,
-  newDocument: Document,
-  options: Options = { output: Output.JSON, enableScore: false }
-) => {
-  if (options.enableScore) {
-    prepareDocs(oldDocument, newDocument);
+const antar = {
+  diffDocument: (
+    oldDocument: Document,
+    newDocument: Document,
+    options: Options = { output: Output.TEXT, enableScore: false }
+  ) => {
+    if (options.enableScore) {
+      prepareDocs(oldDocument, newDocument);
+    }
+    return new DiffBuilder(
+      oldDocument.body.innerHTML,
+      newDocument.body.innerHTML,
+      options
+    ).build();
+  },
+  diff: (
+    lhs: string,
+    rhs: string,
+    options: Options = { output: Output.TEXT, enableScore: false }
+  ) => {
+    return new DiffBuilder(lhs, rhs, options).build();
   }
-  return new DiffBuilder(
-    oldDocument.body.innerHTML,
-    newDocument.body.innerHTML,
-    options
-  ).build();
 };
 
 const slice = (
@@ -270,7 +279,7 @@ class DiffBuilder {
       operation.endInNew
     );
 
-    if (output === Output.HTML) {
+    if (output === Output.TEXT) {
       this.insertTag("ins", clazz, words.map(w => w.text));
     } else {
       this.diff.changesets.push({
@@ -290,7 +299,7 @@ class DiffBuilder {
       operation.startInOld,
       operation.endInOld
     );
-    if (output === Output.HTML) {
+    if (output === Output.TEXT) {
       this.insertTag("del", clazz, words.map(w => w.text));
     } else {
       this.diff.changesets.push({
@@ -305,7 +314,7 @@ class DiffBuilder {
   }
 
   equal(operation: Operation, output: string) {
-    if (output === Output.HTML) {
+    if (output === Output.TEXT) {
       this.content += slice(
         this.newWords,
         operation.startInNew,
@@ -362,7 +371,7 @@ class DiffBuilder {
 
   convertHTMLToListOfWords(html: string): Array<Word> {
     const initialWords = explode(html);
-    const { output } = this.options;
+    const { output, enableScore } = this.options;
     let mode = Mode.Char;
     let currentWord = "";
     let currentId = null;
@@ -390,7 +399,7 @@ class DiffBuilder {
 
               if (id) {
                 currentId = id;
-                if (output === Output.JSON) {
+                if (output === Output.JSON && enableScore) {
                   this.diff.ids[id] = { id, score };
                 }
               }
@@ -640,4 +649,4 @@ class DiffBuilder {
   }
 }
 
-export default diff;
+export default antar;
