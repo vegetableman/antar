@@ -125,7 +125,7 @@ const random = () => {
 const REGEXPS = {
   scoreRegExp: /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/,
   idRegExp: /data-antar-id="(\w+)"/,
-  commentRegExp: /^<!--\s[^--]*\s--/,
+  commentRegExp: /^<!--/,
   attrRegExp: /[^\<\/\w+].*/g,
   commentEndRegExp: /<!-- end antar-id#(\w+) --/
 };
@@ -197,7 +197,7 @@ class Word {
   constructor(text: string, index: number, id?: string) {
     this.text = text;
     this.index = index;
-    id && (this.id = id);
+    this.id = id;
   }
 }
 
