@@ -414,7 +414,9 @@ class DiffBuilder {
             }
 
             if (currentWord && !commentRegExp.test(currentWord)) {
-              currentWord = currentWord.replace(attrRegExp, "");
+              currentWord = currentWord
+                .replace(scoreRegExp, "")
+                .replace(idRegExp, "");
             }
 
             if (currentWord) {
