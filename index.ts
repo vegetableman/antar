@@ -126,7 +126,6 @@ const REGEXPS = {
   scoreRegExp: /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/,
   idRegExp: /data-antar-id="(\w+)"/,
   commentRegExp: /^<!--/,
-  attrRegExp: /[^\<\/\w+].*/g,
   commentEndRegExp: /<!-- end antar-id#(\w+) --/
 };
 
@@ -377,13 +376,7 @@ class DiffBuilder {
     let currentId = null;
     let words = [];
     let index = 0;
-    const {
-      idRegExp,
-      scoreRegExp,
-      commentEndRegExp,
-      commentRegExp,
-      attrRegExp
-    } = REGEXPS;
+    const { idRegExp, scoreRegExp, commentEndRegExp, commentRegExp } = REGEXPS;
 
     initialWords.forEach(char => {
       switch (mode) {
