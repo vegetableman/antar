@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "antar-scorer": "https://github.com/vegetableman/antar-scorer"
+    "antar-scorer": "https://github.com/vegetableman/antar-scorer#14b9b3a43a4b8c49b260b61ca6fac954394ae17a"
   },
   "devDependencies": {
     "parcel": "^1.12.3",

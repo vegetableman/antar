@@ -19,14 +19,20 @@ page1.onload = function() {
     document.getElementsByClassName("diff-output")[0].innerHTML = <string>html;
   };
   document.body.appendChild(page2);
+
   document
     .getElementsByClassName("diff-btn")[0]
     .addEventListener("click", function() {
       (<HTMLElement>(
         document.getElementsByClassName("diff-overlay")[0]
-      )).style.display = "block";
+      )).style.display = "flex";
+      document.getElementsByClassName("diff-overlay-left")[0].innerHTML =
+        page1.contentDocument.body.innerHTML;
+      document.getElementsByClassName("diff-overlay-right")[0].innerHTML =
+        page2.contentDocument.body.innerHTML;
       console.log("output: ", output);
     });
+
   document
     .getElementsByClassName("diff-overlay-close")[0]
     .addEventListener("click", function() {

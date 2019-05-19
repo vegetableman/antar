@@ -16,6 +16,9 @@
       background: #58ff58;
     }
     .diff-overlay {
+      display: flex;
+      flex-direction: row;
+
       background: #fff;
       display: none;
       position: fixed;
@@ -26,13 +29,20 @@
     }
     .diff-overlay-close {
       cursor: pointer;
-      float: right;
-      margin-right: 10px;
-      margin-top: 10px;
+      position: absolute;
+      top: 10px;
+      right: 10px;
     }
     .diff-output {
       float: right;
       width: 700px;
+    }
+    .diff-overlay-left {
+      border-right: 1px solid #ddd;
+    }
+    .diff-overlay-left,
+    .diff-overlay-right {
+      flex: 1;
     }
   </style>
   <body>
@@ -44,6 +54,8 @@
         src="https://icongr.am/clarity/close.svg"
         class="diff-overlay-close"
       />
+      <div class="diff-overlay-left"></div>
+      <div class="diff-overlay-right"></div>
     </div>
   </body>
 </html>

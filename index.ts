@@ -126,7 +126,7 @@ const REGEXPS = {
   scoreRegExp: /data-antar-score="([-+]?[0-9]*\.?[0-9]+)"/,
   idRegExp: /data-antar-id="(\w+)"/,
   commentRegExp: /^<!--/,
-  commentEndRegExp: /<!-- end antar-id#(\w+) --/
+  commentEndRegExp: /<!-- end antar-id#(\w+) -->?/
 };
 
 const idify = (doc: Document) => {
@@ -144,10 +144,26 @@ const idify = (doc: Document) => {
   });
 };
 
+const deidify = (doc: Document) => {
+  doc.body.querySelectorAll(`[${Attr.Score}]`).forEach(node => {
+    if (node.getAttribute(Attr.Id)) {
+      node.removeAttribute(Attr.Id);
+      node.nextSibling.remove();
+    }
+  });
+};
+
 const prepareDocs = (oldDocument: Document, newDocument: Document) => {
   [oldDocument, newDocument].forEach(doc => {
     scorer.score(doc.body.innerHTML, doc);
     idify(doc);
+  });
+};
+
+const cleanDocs = (oldDocument: Document, newDocument: Document) => {
+  [oldDocument, newDocument].forEach(doc => {
+    deidify(doc);
+    scorer.descore(doc);
   });
 };
 
@@ -160,11 +176,13 @@ const antar = {
     if (options.enableScore) {
       prepareDocs(oldDocument, newDocument);
     }
-    return new DiffBuilder(
+    const output = new DiffBuilder(
       oldDocument.body.innerHTML,
       newDocument.body.innerHTML,
       options
     ).build();
+    cleanDocs(oldDocument, newDocument);
+    return output;
   },
   diff: (
     lhs: string,
@@ -412,7 +430,7 @@ class DiffBuilder {
                 .replace(idRegExp, "");
             }
 
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               currentWord += ">";
               words.push(new Word(currentWord, index++, currentId));
             }
@@ -430,14 +448,14 @@ class DiffBuilder {
 
         case Mode.Char:
           if (isStartOfTag(char)) {
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               words.push(new Word(currentWord, index++, currentId));
             }
 
             currentWord = "<";
             mode = Mode.Tag;
           } else if (isWhiteSpace.test(char)) {
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               words.push(new Word(currentWord, index++, currentId));
             }
 
@@ -446,7 +464,7 @@ class DiffBuilder {
           } else if (isWord.test(char)) {
             currentWord += char;
           } else {
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               words.push(new Word(currentWord, index++, currentId));
             }
             currentWord = char;
@@ -455,7 +473,7 @@ class DiffBuilder {
 
         case Mode.Whitespace:
           if (isStartOfTag(char)) {
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               words.push(new Word(currentWord, index++, currentId));
             }
 
@@ -464,7 +482,7 @@ class DiffBuilder {
           } else if (isWhiteSpace.test(char)) {
             currentWord += char;
           } else {
-            if (currentWord) {
+            if (currentWord && !commentEndRegExp.test(currentWord)) {
               words.push(new Word(currentWord, index++, currentId));
             }
             currentWord = char;
@@ -477,7 +495,7 @@ class DiffBuilder {
       }
     });
 
-    if (currentWord) {
+    if (currentWord && !commentEndRegExp.test(currentWord)) {
       words.push(new Word(currentWord, index++, currentId));
     }
 
@@ -494,6 +512,7 @@ class DiffBuilder {
     this.newWords.forEach((word: Word, i) => {
       this.wordIndices[word.text] = i;
     });
+    console.log("this.wordIndices: ", this.wordIndices);
   }
 
   findOperations(): Array<Operation> {
