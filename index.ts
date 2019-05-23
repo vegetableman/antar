@@ -7,8 +7,8 @@ enum Mode {
 }
 
 enum Output {
-  TEXT = "text",
-  JSON = "json"
+  DEFAULT = "default",
+  SPLIT = "split"
 }
 
 enum Actions {
@@ -26,7 +26,7 @@ enum Attr {
 interface Word {
   text: string;
   index: number;
-  id: string;
+  id?: string;
 }
 
 interface Match {
@@ -44,7 +44,7 @@ interface Operation {
 }
 
 interface Options {
-  output: string;
+  output?: string;
   enableScore?: boolean;
 }
 
@@ -55,15 +55,9 @@ interface DiffBuilder {
   newWords: Array<Word>;
   wordIndices: {};
   operations: Array<Operation>;
-  content: string;
-  result: {};
   options: Options;
-  diff: Diff;
-}
-
-interface Diff {
-  changesets: Array<{}>;
-  ids: {};
+  content: string;
+  idScore: {};
 }
 
 const isWhiteSpace = new RegExp(/\s/);
@@ -171,10 +165,13 @@ const antar = {
   diffDocument: (
     oldDocument: Document,
     newDocument: Document,
-    options: Options = { output: Output.TEXT, enableScore: false }
+    options: Options = { output: Output.DEFAULT, enableScore: false }
   ) => {
     if (options.enableScore) {
       prepareDocs(oldDocument, newDocument);
+    }
+    if (!options.output) {
+      options.output = Output.DEFAULT;
     }
     const output = new DiffBuilder(
       oldDocument.body.innerHTML,
@@ -187,7 +184,7 @@ const antar = {
   diff: (
     lhs: string,
     rhs: string,
-    options: Options = { output: Output.TEXT, enableScore: false }
+    options: Options = { output: Output.DEFAULT, enableScore: false }
   ) => {
     return new DiffBuilder(lhs, rhs, options).build();
   }
@@ -201,20 +198,11 @@ const slice = (
   return words.filter(w => w.index >= startIndex && w.index < endIndex);
 };
 
-class Diff {
-  constructor(enableScore?: boolean) {
-    this.changesets = [];
-    if (enableScore) {
-      this.ids = [];
-    }
-  }
-}
-
 class Word {
   constructor(text: string, index: number, id?: string) {
     this.text = text;
     this.index = index;
-    this.id = id;
+    id && (this.id = id);
   }
 }
 
@@ -255,91 +243,126 @@ class DiffBuilder {
     this.oldHTML = oldHTML;
     this.newHTML = newHTML;
     this.options = options;
+    this.idScore = {};
     this.content = "";
-    this.result = {};
-    this.diff = new Diff(options.enableScore);
   }
 
   build() {
     this.convertToWords();
     this.indexNewWords();
     this.operations = this.findOperations();
-    this.operations.forEach(operation => {
-      this.performOperation(operation);
-    });
-    return this.options.output === Output.JSON ? this.diff : this.content;
+    if (this.options.output === Output.DEFAULT) {
+      this.operations.forEach(operation => {
+        this.performOperation(operation);
+      });
+      return this.content;
+    } else {
+      let result = [];
+      this.operations.forEach(operation => {
+        this.performLeftOperation(operation);
+      });
+      result.push(this.content);
+      this.content = "";
+      this.operations.forEach(operation => {
+        this.performRightOperation(operation);
+      });
+      result.push(this.content);
+      return result;
+    }
   }
 
-  performOperation(operation: Operation): void {
-    const { output } = this.options;
+  performLeftOperation(operation: Operation): void {
     switch (operation.action) {
-      case Actions.Insert:
-        this.insert(operation, "diffins", output);
-        break;
       case Actions.Delete:
-        this.delete(operation, "diffdel", output);
+        this.delete(operation, "diffdel");
         break;
       case Actions.Replace:
-        this.delete(operation, "diffmod", output);
-        this.insert(operation, "diffmod", output);
+        this.delete(operation, "diffmod");
         break;
       case Actions.Equal:
-        this.equal(operation, output);
+        this.equal(operation);
         break;
     }
   }
 
-  insert(operation: Operation, clazz: string, output: string) {
+  performRightOperation(operation: Operation): void {
+    switch (operation.action) {
+      case Actions.Insert:
+        this.insert(operation, "diffins");
+        break;
+      case Actions.Replace:
+        this.insert(operation, "diffmod");
+        break;
+      case Actions.Equal:
+        this.equal(operation);
+        break;
+    }
+  }
+
+  performOperation(operation: Operation): void {
+    switch (operation.action) {
+      case Actions.Insert:
+        this.insert(operation, "diffins");
+      case Actions.Delete:
+        this.delete(operation, "diffdel");
+        break;
+      case Actions.Replace:
+        this.delete(operation, "diffmod");
+        this.insert(operation, "diffmod");
+        break;
+      case Actions.Equal:
+        this.equal(operation);
+        break;
+    }
+  }
+
+  insert(operation: Operation, clazz: string) {
     const words = slice(
       this.newWords,
       operation.startInNew,
       operation.endInNew
     );
 
-    if (output === Output.TEXT) {
-      this.insertTag("ins", clazz, words.map(w => w.text));
-    } else {
-      this.diff.changesets.push({
-        action: "INSERT",
-        startIndex: operation.startInNew,
-        endIndex: operation.endInNew,
-        ...(this.options.enableScore && {
-          id: words.length ? words[0].id : null
-        })
-      });
-    }
+    this.insertTag(
+      "ins",
+      clazz,
+      words.map(w => {
+        return w.id
+          ? w.text.replace(/>$/, `${Attr.Score}='${this.idScore[w.id]}' >`)
+          : w.text;
+      })
+    );
   }
 
-  delete(operation: Operation, clazz: string, output: string) {
+  delete(operation: Operation, clazz: string) {
     const words = slice(
       this.oldWords,
       operation.startInOld,
       operation.endInOld
     );
-    if (output === Output.TEXT) {
-      this.insertTag("del", clazz, words.map(w => w.text));
-    } else {
-      this.diff.changesets.push({
-        action: "DELETE",
-        startIndex: operation.startInOld,
-        endIndex: operation.endInOld,
-        ...(this.options.enableScore && {
-          id: words.length ? words[0].id : null
-        })
-      });
-    }
+    this.insertTag(
+      "del",
+      clazz,
+      words.map(w => {
+        return w.id
+          ? w.text.replace(/>$/, `${Attr.Score}='${this.idScore[w.id]}' >`)
+          : w.text;
+      })
+    );
   }
 
-  equal(operation: Operation, output: string) {
-    if (output === Output.TEXT) {
-      this.content += slice(
-        this.newWords,
-        operation.startInNew,
-        operation.endInNew
-      )
-        .map(w => w.text)
-        .join("");
-    }
+  equal(operation: Operation) {
+    this.content += slice(
+      this.newWords,
+      operation.startInNew,
+      operation.endInNew
+    )
+      .map(w => {
+        return w.id
+          ? w.text.replace(/>$/, `${Attr.Score}='${this.idScore[w.id]}' >`)
+          : w.text;
+      })
+      .join("");
   }
 
   findConsecutiveIndex(words: Array<string>, condition: Function): number {
@@ -361,7 +384,7 @@ class DiffBuilder {
     return `<${tagName} class="${cssClass}">${text}</${tagName}>`;
   }
 
-  insertTag(tagName: string, cssClass: string, words: Array<string>) {
+  insertTag(tagName: string, cssClass: string, words: Array<string>): void {
     while (true) {
       if (!words.length) {
         break;
@@ -400,19 +423,20 @@ class DiffBuilder {
       switch (mode) {
         case Mode.Tag:
           if (isEndOfTag(char)) {
-            if (this.options.enableScore) {
-              let id =
-                idRegExp.test(currentWord) && currentWord.match(idRegExp)[1];
+            let id: string;
+            if (enableScore) {
+              id = idRegExp.test(currentWord) && currentWord.match(idRegExp)[1];
 
               let score =
                 scoreRegExp.test(currentWord) &&
                 currentWord.match(scoreRegExp)[1];
 
               if (id) {
+                this.idScore[id] = score;
+              }
+
+              if (id) {
                 currentId = id;
-                if (output === Output.JSON && enableScore) {
-                  this.diff.ids[id] = { id, score };
-                }
               }
             }
 
@@ -432,7 +456,7 @@ class DiffBuilder {
 
             if (currentWord && !commentEndRegExp.test(currentWord)) {
               currentWord += ">";
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++, id));
             }
 
             currentWord = "";
@@ -449,14 +473,14 @@ class DiffBuilder {
         case Mode.Char:
           if (isStartOfTag(char)) {
             if (currentWord && !commentEndRegExp.test(currentWord)) {
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++));
             }
 
             currentWord = "<";
             mode = Mode.Tag;
           } else if (isWhiteSpace.test(char)) {
             if (currentWord && !commentEndRegExp.test(currentWord)) {
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++));
             }
 
             currentWord = char;
@@ -465,7 +489,7 @@ class DiffBuilder {
             currentWord += char;
           } else {
             if (currentWord && !commentEndRegExp.test(currentWord)) {
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++));
             }
             currentWord = char;
           }
@@ -474,7 +498,7 @@ class DiffBuilder {
         case Mode.Whitespace:
           if (isStartOfTag(char)) {
             if (currentWord && !commentEndRegExp.test(currentWord)) {
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++));
             }
 
             currentWord = "<";
@@ -483,7 +507,7 @@ class DiffBuilder {
             currentWord += char;
           } else {
             if (currentWord && !commentEndRegExp.test(currentWord)) {
-              words.push(new Word(currentWord, index++, currentId));
+              words.push(new Word(currentWord, index++));
             }
             currentWord = char;
             mode = Mode.Char;
@@ -512,7 +536,6 @@ class DiffBuilder {
     this.newWords.forEach((word: Word, i) => {
       this.wordIndices[word.text] = i;
     });
-    console.log("this.wordIndices: ", this.wordIndices);
   }
 
   findOperations(): Array<Operation> {

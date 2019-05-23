@@ -6,17 +6,19 @@ page1.onload = function() {
   const page2 = document.createElement("iframe");
   page2.src = "page2.html";
   page2.onload = function() {
-    output = antar.diffDocument(page1.contentDocument, page2.contentDocument, {
-      output: "json",
-      enableScore: true
-    });
-    console.log(output);
-
     const html = antar.diffDocument(
       page1.contentDocument,
-      page2.contentDocument
+      page2.contentDocument,
+      {
+        enableScore: true
+      }
     );
     document.getElementsByClassName("diff-output")[0].innerHTML = <string>html;
+
+    output = antar.diffDocument(page1.contentDocument, page2.contentDocument, {
+      output: "split",
+      enableScore: true
+    });
   };
   document.body.appendChild(page2);
 
@@ -26,11 +28,12 @@ page1.onload = function() {
       (<HTMLElement>(
         document.getElementsByClassName("diff-overlay")[0]
       )).style.display = "flex";
-      document.getElementsByClassName("diff-overlay-left")[0].innerHTML =
-        page1.contentDocument.body.innerHTML;
-      document.getElementsByClassName("diff-overlay-right")[0].innerHTML =
-        page2.contentDocument.body.innerHTML;
-      console.log("output: ", output);
+      const leftNode = document.getElementsByClassName("diff-overlay-left")[0];
+      leftNode.innerHTML = output[0];
+      const rightNode = document.getElementsByClassName(
+        "diff-overlay-right"
+      )[0];
+      rightNode.innerHTML = output[1];
     });
 
   document
